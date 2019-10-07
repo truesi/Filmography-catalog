@@ -33,21 +33,15 @@ public class FilmCatalogResource {
     public List<CatalogItem> getCatalog(@PathVariable("userID") String userID){
 
         //get all rated movies id
-        UserRating ratings = restTemplate.getForObject("http://film-rating-service/rating/users/" + userID, UserRating.class);
+        UserRating ratings = restTemplate.getForObject("http://ratingservice/rating/users/" + userID, UserRating.class);
 
         return ratings
                 .getUserRating()
                 .stream()
                 .map(rating -> {
                     //for each movie id call movie info service and get details
-                    MovieDummy movieDummy = restTemplate.getForObject("http://movie-dummy-service/movies/" + rating.getMovieID(), MovieDummy.class);
-//                    this way we can make api call asynchronous althoug resttemplate is async it is deprecated and will no longer support
-//                    MovieDummy movieDummy = webClientBuilder.build()
-//                            .get()
-//                            .uri("http://localhost:8085/movies/" + rating.getMovieID())
-//                            .retrieve()
-//                            .bodyToMono(MovieDummy.class)
-//                            .block();
+                    MovieDummy movieDummy = restTemplate.getForObject("http://moviedummyservice/movies/" + rating.getMovieID(), MovieDummy.class);
+
                     //put them all together
                     return new CatalogItem(movieDummy.getName(), "Test", rating.getRating());
                     })
@@ -56,3 +50,10 @@ public class FilmCatalogResource {
 
     }
 }
+//                    this way we can make api call asynchronous althoug resttemplate is async it is deprecated and will no longer support
+//                    MovieDummy movieDummy = webClientBuilder.build()
+//                            .get()
+//                            .uri("http://localhost:8085/movies/" + rating.getMovieID())
+//                            .retrieve()
+//                            .bodyToMono(MovieDummy.class)
+//                            .block();
