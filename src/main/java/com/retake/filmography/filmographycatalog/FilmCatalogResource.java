@@ -1,6 +1,7 @@
 package com.retake.filmography.filmographycatalog;
 
 
+import com.netflix.hystrix.contrib.javanica.annotation.HystrixCommand;
 import com.retake.filmography.filmographycatalog.models.CatalogItem;
 import com.retake.filmography.filmographycatalog.models.MovieDummy;
 import com.retake.filmography.filmographycatalog.models.Rating;
@@ -30,26 +31,53 @@ public class FilmCatalogResource {
     private WebClient.Builder webClientBuilder;
 
     @RequestMapping("/{userID}")
+    @HystrixCommand(fallbackMethod = "getFallBackCatalog")
     public List<CatalogItem> getCatalog(@PathVariable("userID") String userID){
 
         //get all rated movies id
-        UserRating ratings = restTemplate.getForObject("http://ratingservice/rating/users/" + userID, UserRating.class);
+        UserRating ratings = getUserRating(userID);
 
         return ratings
                 .getUserRating()
                 .stream()
                 .map(rating -> {
-                    //for each movie id call movie info service and get details
-                    MovieDummy movieDummy = restTemplate.getForObject("http://moviedummyservice/movies/" + rating.getMovieID(), MovieDummy.class);
-
-                    //put them all together
-                    return new CatalogItem(movieDummy.getName(), "Test", rating.getRating());
-                    })
+                    return getCatalogItem(rating);
+                })
                 .collect(Collectors.toList());
+    }
 
+    @HystrixCommand(fallbackMethod = "getFallBackCatalogItem")
+    private CatalogItem getCatalogItem(Rating rating) {
+        //for each movie id call movie info service and get details
+        MovieDummy movieDummy = restTemplate.getForObject("http://moviedummyservice/movies/" + rating.getMovieID(), MovieDummy.class);
 
+        //put them all together
+        return new CatalogItem(movieDummy.getName(), "Test", rating.getRating());
+    }
+
+    private CatalogItem getFallBackCatalogItem(Rating rating){
+        return new CatalogItem("Movie not found ", "", rating.getRating());
+    }
+
+    @HystrixCommand(fallbackMethod = "getFallBackUserRating")
+    private UserRating getUserRating(@PathVariable("userID") String userID) {
+        return restTemplate.getForObject("http://ratingservice/rating/users/" + userID, UserRating.class);
+    }
+
+    private UserRating getFallBackUserRating(@PathVariable("userID") String userID) {
+        UserRating userRating = new UserRating();
+        userRating.setUserId(userID);
+        userRating.setUserRating(Arrays.asList(new Rating("0", 0)));
+        return userRating;
+    }
+
+    //circuit breaker if no response hystrix
+    public List<CatalogItem> getFallBackCatalog(@PathVariable("userID") String userID) {
+        return Arrays.asList(new CatalogItem("No movie", "",0));
     }
 }
+
+
 //                    this way we can make api call asynchronous althoug resttemplate is async it is deprecated and will no longer support
 //                    MovieDummy movieDummy = webClientBuilder.build()
 //                            .get()
